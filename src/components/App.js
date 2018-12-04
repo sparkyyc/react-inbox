@@ -10,24 +10,73 @@ class App extends React.Component {
     state = { messages: [], compose: false }
 
     async componentDidMount() {
+        this.getMessages()
+    }
+
+    getMessages = async () => {
         const response = await axios.get('http://localhost:8082/api/messages')
         
         this.setState({ messages: response.data })
         console.log(response.data)
     }
 
-    onStarClick = (message) => {
+
+    onSendSubmit = async (body) => {
+        // post
+        await fetch("http://localhost:8082/api/messages", {
+            method: "POST",
+            body: JSON.stringify(body),
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json'
+            }, 
+          })
+        // set compose to false
+          this.setState((prevState) => ({
+              ...prevState,
+              compose: false
+          }))
+        // update state with new message
+          this.getMessages()
+    }
+
+    updateMessages = async (body) => {
+        body = JSON.stringify(body)
+       return await fetch("http://localhost:8082/api/messages", {
+            method: "PATCH",
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: body
+          })
+    }
+
+    starUpdateCallback = (message) => {
+        const messageCopy = {...message}
+        messageCopy.starred === true ? messageCopy.starred = false : messageCopy.starred = true 
+        return this.updateMessages({
+            "messageIds": [messageCopy.id],
+            "command": "star",
+            "star": [messageCopy.starred]
+        })
+    }
+
+    onStarClick = async(message) => {
         // change messaged referenced
         const withStarChange = this.state.messages.map(el => {
             if(el.id === message.id) {
+                console.log('hello???', el.starred)
                 el.starred === true ? el.starred = false : el.starred = true
                 return el
             } else {
                 return el
             }
         })
+        
         // change state of messages
-        this.setState(() => ({ messages: withStarChange }))
+        this.setState({ messages: withStarChange })
+        this.starUpdateCallback(message)
     }
 
     onCheckboxClick = (message) => {
@@ -63,6 +112,14 @@ class App extends React.Component {
         this.setState(() => ({ messages: changedChecks }))
     }
 
+    readUpdateCallback = () => {
+        this.updateMessages({
+            "messageIds": this.state.messages.filter(message => message.selected).map(message => message.id),
+            "command": "read",
+            "read": true
+        })
+    }
+
     onMarkReadClick = () => {
         const markedRead = this.state.messages.map(el => {
             if (el.selected === true) {
@@ -74,6 +131,15 @@ class App extends React.Component {
         })
 
         this.setState(() => ({ messages: markedRead }))
+        this.readUpdateCallback()
+    }
+
+    unreadUpdateCallback = () => {
+        this.updateMessages({
+            "messageIds": this.state.messages.filter(message => message.selected).map(message => message.id),
+            "command": "read",
+            "read": false
+        })
     }
 
     onMarkUnReadClick = () => {
@@ -87,6 +153,14 @@ class App extends React.Component {
         })
 
         this.setState(() => ({ messages: markedUnRead }))
+        this.unreadUpdateCallback()
+    }
+
+    deleteUpdateCallback = () => {
+        this.updateMessages({
+            "messageIds": this.state.messages.filter(message => message.selected).map(message => message.id),
+            "command": "delete"
+        })
     }
 
     onDeleteClick = () => {
@@ -95,6 +169,15 @@ class App extends React.Component {
         })
 
         this.setState(() => ({ messages: filteredList }))
+        this.deleteUpdateCallback()
+    }
+
+    labelAddUpdateCallback = (label) => {
+        this.updateMessages({
+            "messageIds": this.state.messages.filter(message => message.selected).map(message => message.id),
+            "command": "addLabel",
+            "label": label
+        })
     }
 
     onLabelAdd = (label) => {
@@ -111,7 +194,16 @@ class App extends React.Component {
             })
     
             this.setState(() => ({ messages: addedLabelList }))
+            this.labelAddUpdateCallback(label)
         }
+    }
+
+    labelRemoveUpdateCallback = (label) => {
+        this.updateMessages({
+            "messageIds": this.state.messages.filter(message => message.selected).map(message => message.id),
+            "command": "removeLabel",
+            "label": label
+        })
     }
 
     onLabelRemove = (label) => {
@@ -128,6 +220,7 @@ class App extends React.Component {
             })
             
             this.setState(() => ({ messages: removedLabelList }))
+            this.labelRemoveUpdateCallback(label)
         }
     }
 
@@ -143,7 +236,7 @@ class App extends React.Component {
         if (!this.state.compose) {
             return <div></div>
         } else {
-            return <Compose />
+            return <Compose onSendSubmit={this.onSendSubmit} />
         }
     }
 
